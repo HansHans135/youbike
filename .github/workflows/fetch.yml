@@ -6,7 +6,7 @@ on:
     - cron: '*/5 * * * *'  # 5min
   push:
     branches:
-      - page
+      - main
 
 jobs:
   fetch-and-save:
@@ -27,6 +27,11 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+      - name: Switch to page branch
+        run: |
+          git fetch origin
+          git checkout page || git checkout -b page
+
       - name: Run fetch script
         run: python run.py
 
@@ -35,9 +40,5 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          git fetch origin
-          git checkout page || git checkout -b page
-
-          git add data/ 
-          git add index.json
-          git diff --cached --quiet && echo "No changes to commit" || (git commit -m "Add fetched data" && git push origin page --force)
+          git add data/ index.json
+          git diff --cached --quiet && echo "No changes to commit" || (git commit -m "Add fetched data" && git push origin page)
