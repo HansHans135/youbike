@@ -38,5 +38,6 @@ jobs:
           git fetch origin
           git checkout page || git checkout -b page
 
-          git add data/ index.json
+          git add data/ 
+          git add index.json
           git diff --cached --quiet && echo "No changes to commit" || (git commit -m "Add fetched data" && git push origin page)
