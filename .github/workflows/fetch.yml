@@ -6,7 +6,7 @@ on:
     - cron: '*/5 * * * *'  # 5min
   push:
     branches:
-      - main
+      - page
 
 jobs:
   fetch-and-save:
