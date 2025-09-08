@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouBike 即時車況</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        youbike: '#2DC759',
+                        'youbike-dark': '#23A046'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50">
+    <!-- 導航欄 -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-bicycle text-youbike text-2xl mr-3"></i>
+                    <h1 class="text-xl font-bold text-gray-800">YouBike 即時車況</h1>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="index.html" class="text-youbike font-medium border-b-2 border-youbike pb-1">首頁</a>
+                    <a href="stations.html" class="text-gray-600 hover:text-youbike transition-colors">車站歷史</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要內容 -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- 頁面標題 -->
+        <div class="mb-8">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center">
+                    <i class="fas fa-star text-yellow-500 mr-2"></i>
+                    <h2 class="text-3xl font-bold text-gray-900">我的常用站牌</h2>
+                </div>
+                <button onclick="location.reload()" class="bg-youbike hover:bg-youbike-dark text-white px-4 py-2 rounded-lg flex items-center">
+                    <i class="fas fa-sync-alt mr-2"></i>
+                    重新整理
+                </button>
+            </div>
+            <p class="text-gray-600">顯示 config.json 中設定的常用站牌即時車況</p>
+            <p class="text-gray-600">最新更新時間：<span id="lastUpdate" class="font-medium">載入中...</span></p>
+        </div>
+
+        <!-- 載入狀態 -->
+        <div id="loading" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-youbike"></div>
+            <p class="mt-4 text-gray-600">載入中...</p>
+        </div>
+
+        <!-- 即時車況卡片 -->
+        <div id="stationsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-12 hidden">
+        </div>
+
+        <!-- 歷史趨勢圖表 -->
+        <div id="trendsSection" class="bg-white rounded-lg shadow-lg p-6 hidden">
+            <h3 class="text-xl font-bold text-gray-900 mb-6">歷史趨勢</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h4 class="text-lg font-semibold text-gray-800 mb-4">可借車輛趨勢</h4>
+                    <div class="relative h-64 w-full">
+                        <canvas id="availableBikesChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h4 class="text-lg font-semibold text-gray-800 mb-4">可停車位趨勢</h4>
+                    <div class="relative h-64 w-full">
+                        <canvas id="availableSpacesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allStationsData = {};
+        let dataFiles = [];
+        let favoriteStations = [];
+
+        // 載入資料檔案清單
+        async function loadDataFiles() {
+            try {
+                const response = await fetch('index.json');
+                dataFiles = await response.json();
+                console.log('資料檔案清單:', dataFiles);
+            } catch (error) {
+                console.error('載入資料檔案清單失敗:', error);
+            }
+        }
+
+        // 載入常用站牌配置
+        async function loadFavoriteStations() {
+            try {
+                const response = await fetch('config.json');
+                const config = await response.json();
+                favoriteStations = config.likes || [];
+                console.log('常用站牌:', favoriteStations);
+            } catch (error) {
+                console.error('載入常用站牌配置失敗:', error);
+                favoriteStations = [];
+            }
+        }
+
+        // 載入所有歷史資料
+        async function loadAllData() {
+            try {
+                for (const file of dataFiles) {
+                    const response = await fetch(`data/${file}`);
+                    const data = await response.json();
+                    const timestamp = file.replace('.json', '');
+                    allStationsData[timestamp] = data;
+                }
+                console.log('已載入所有資料:', Object.keys(allStationsData));
+            } catch (error) {
+                console.error('載入歷史資料失敗:', error);
+            }
+        }
+
+        // 獲取最新資料
+        function getLatestData() {
+            const timestamps = Object.keys(allStationsData).sort().reverse();
+            return timestamps.length > 0 ? allStationsData[timestamps[0]] : [];
+        }
+
+        // 獲取常用站牌的最新資料
+        function getFavoriteStationsData() {
+            const latestData = getLatestData();
+            if (!favoriteStations.length) {
+                return latestData; // 如果沒有設定常用站牌，顯示所有站牌
+            }
+            return latestData.filter(station => favoriteStations.includes(station.sna));
+        }
+
+        // 格式化時間
+        function formatTime(timestamp) {
+            const year = timestamp.substring(0, 4);
+            const month = timestamp.substring(5, 7);
+            const day = timestamp.substring(8, 10);
+            const hour = timestamp.substring(11, 13);
+            const minute = timestamp.substring(14, 16);
+            const second = timestamp.substring(17, 19);
+            return `${year}/${month}/${day} ${hour}:${minute}:${second}`;
+        }
+
+        // 獲取站牌狀態顏色
+        function getStatusColor(available, total) {
+            const ratio = available / total;
+            if (ratio > 0.7) return 'text-green-600 bg-green-100';
+            if (ratio > 0.3) return 'text-yellow-600 bg-yellow-100';
+            return 'text-red-600 bg-red-100';
+        }
+
+        // 渲染站牌卡片
+        function renderStations() {
+            const favoriteData = getFavoriteStationsData();
+            if (!favoriteData.length) return;
+
+            const grid = document.getElementById('stationsGrid');
+            const timestamps = Object.keys(allStationsData).sort().reverse();
+            const latestTimestamp = timestamps[0];
+
+            grid.innerHTML = favoriteData.map(station => {
+                const availableBikes = parseInt(station.sbi);
+                const availableSpaces = parseInt(station.bemp);
+                const total = parseInt(station.tot);
+                
+                const bikesColor = getStatusColor(availableBikes, total);
+                const spacesColor = getStatusColor(availableSpaces, total);
+
+                return `
+                    <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+                        <div class="flex items-start justify-between mb-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900 mb-1">${station.sna}</h3>
+                                <p class="text-sm text-gray-600">${station.ar}</p>
+                                <p class="text-xs text-gray-500 mt-1">${station.sarea}</p>
+                            </div>
+                            <div class="flex items-center text-sm text-gray-500">
+                                <i class="fas fa-clock mr-1"></i>
+                                ${formatTime(latestTimestamp)}
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="text-center">
+                                <div class="flex items-center justify-center mb-2">
+                                    <i class="fas fa-bicycle text-youbike mr-2"></i>
+                                    <span class="text-sm font-medium text-gray-700">可借</span>
+                                </div>
+                                <div class="text-2xl font-bold ${bikesColor} px-3 py-1 rounded-full">
+                                    ${availableBikes}
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <div class="flex items-center justify-center mb-2">
+                                    <i class="fas fa-parking text-blue-600 mr-2"></i>
+                                    <span class="text-sm font-medium text-gray-700">可還</span>
+                                </div>
+                                <div class="text-2xl font-bold ${spacesColor} px-3 py-1 rounded-full">
+                                    ${availableSpaces}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 pt-4 border-t border-gray-200">
+                            <div class="flex justify-between text-sm text-gray-600">
+                                <span>總車位：${total}</span>
+                                <span class="text-${station.act === '1' ? 'green' : 'red'}-600">
+                                    ${station.act === '1' ? '營運中' : '暫停服務'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 顯示網格，隱藏載入狀態
+            grid.classList.remove('hidden');
+            document.getElementById('loading').classList.add('hidden');
+            
+            // 更新最後更新時間
+            document.getElementById('lastUpdate').textContent = formatTime(latestTimestamp);
+        }
+
+        // 渲染歷史趨勢圖表
+        function renderTrends() {
+            const timestamps = Object.keys(allStationsData).sort();
+            if (timestamps.length < 2) return;
+
+            const favoriteData = getFavoriteStationsData();
+            if (!favoriteData.length) return;
+
+            // 使用常用站牌作為趨勢顯示（最多3個）
+            const selectedStations = favoriteData.slice(0, 3);
+            
+            const labels = timestamps.map(ts => formatTime(ts));
+            
+            // 可借車輛趨勢
+            const availableBikesData = {
+                labels: labels,
+                datasets: selectedStations.map((station, index) => ({
+                    label: station.sna,
+                    data: timestamps.map(ts => {
+                        const stationData = allStationsData[ts].find(s => s.sno === station.sno);
+                        return stationData ? parseInt(stationData.sbi) : 0;
+                    }),
+                    borderColor: [`#2DC759`, `#3B82F6`, `#F59E0B`][index],
+                    backgroundColor: [`#2DC759`, `#3B82F6`, `#F59E0B`][index] + '20',
+                    tension: 0.1
+                }))
+            };
+
+            // 可停車位趨勢
+            const availableSpacesData = {
+                labels: labels,
+                datasets: selectedStations.map((station, index) => ({
+                    label: station.sna,
+                    data: timestamps.map(ts => {
+                        const stationData = allStationsData[ts].find(s => s.sno === station.sno);
+                        return stationData ? parseInt(stationData.bemp) : 0;
+                    }),
+                    borderColor: [`#2DC759`, `#3B82F6`, `#F59E0B`][index],
+                    backgroundColor: [`#2DC759`, `#3B82F6`, `#F59E0B`][index] + '20',
+                    tension: 0.1
+                }))
+            };
+
+            const chartConfig = {
+                type: 'line',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                font: {
+                                    size: window.innerWidth < 768 ? 10 : 12
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                font: {
+                                    size: window.innerWidth < 768 ? 10 : 12
+                                },
+                                maxRotation: window.innerWidth < 768 ? 45 : 0
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: window.innerWidth < 768 ? 10 : 20,
+                                font: {
+                                    size: window.innerWidth < 768 ? 10 : 12
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            };
+
+            // 渲染圖表
+            new Chart(document.getElementById('availableBikesChart'), {
+                ...chartConfig,
+                data: availableBikesData
+            });
+
+            new Chart(document.getElementById('availableSpacesChart'), {
+                ...chartConfig,
+                data: availableSpacesData
+            });
+
+            // 顯示趨勢區塊
+            document.getElementById('trendsSection').classList.remove('hidden');
+        }
+
+        // 初始化
+        async function init() {
+            await loadDataFiles();
+            await loadFavoriteStations();
+            await loadAllData();
+            renderStations();
+            renderTrends();
+        }
+
+        // 視窗大小變化時重新渲染圖表
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                const timestamps = Object.keys(allStationsData).sort();
+                if (timestamps.length >= 2) {
+                    renderTrends();
+                }
+            }, 300);
+        });
+
+        // 頁面載入完成後初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

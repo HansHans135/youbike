@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouBike 車站歷史趨勢</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        youbike: '#2DC759',
+                        'youbike-dark': '#23A046'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50">
+    <!-- 導航欄 -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-bicycle text-youbike text-2xl mr-3"></i>
+                    <h1 class="text-xl font-bold text-gray-800">YouBike 即時車況</h1>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="index.html" class="text-gray-600 hover:text-youbike transition-colors">首頁</a>
+                    <a href="stations.html" class="text-youbike font-medium border-b-2 border-youbike pb-1">車站歷史</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要內容 -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- 頁面標題 -->
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold text-gray-900 mb-2">車站歷史趨勢</h2>
+            <p class="text-gray-600">查看各車站的歷史使用情況和趨勢變化</p>
+        </div>
+
+        <!-- 搜尋和篩選 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">搜尋車站</label>
+                    <div class="relative">
+                        <input 
+                            type="text" 
+                            id="stationSearch" 
+                            placeholder="輸入車站名稱..."
+                            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-youbike focus:border-transparent"
+                        >
+                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">行政區</label>
+                    <select 
+                        id="areaFilter" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-youbike focus:border-transparent"
+                    >
+                        <option value="">所有行政區</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">附近站點</label>
+                    <button 
+                        id="locationBtn"
+                        class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center"
+                    >
+                        <i class="fas fa-location-arrow mr-2"></i>
+                        <span id="locationBtnText">找附近站點</span>
+                    </button>
+                </div>
+                <div class="flex items-end">
+                    <button 
+                        id="clearFilters"
+                        class="w-full bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                        <i class="fas fa-times mr-2"></i>清除篩選
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 額外選項 -->
+            <div class="mt-4 flex flex-wrap items-center gap-4">
+                <label class="flex items-center">
+                    <input 
+                        type="checkbox" 
+                        id="showTopTenOnly" 
+                        class="w-4 h-4 text-youbike bg-gray-100 border-gray-300 rounded focus:ring-youbike focus:ring-2 mr-2"
+                    >
+                    <span class="text-sm text-gray-700">只顯示前十個車站</span>
+                    <span class="text-xs text-gray-500 ml-1">(定位時按距離排序)</span>
+                </label>
+            </div>
+            
+            <!-- 定位狀態顯示 -->
+            <div id="locationStatus" class="mt-4 hidden">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div class="flex items-center">
+                        <i class="fas fa-map-marker-alt text-blue-600 mr-2"></i>
+                        <span class="text-sm text-blue-800">
+                            <span id="locationText">正在定位中...</span>
+                        </span>
+                        <button 
+                            id="clearLocation"
+                            class="ml-auto text-blue-600 hover:text-blue-800 transition-colors"
+                            title="清除定位"
+                        >
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 載入狀態 -->
+        <div id="loading" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-youbike"></div>
+            <p class="mt-4 text-gray-600">載入中...</p>
+        </div>
+
+        <!-- 車站列表 -->
+        <div id="stationsList" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-900">
+                    車站列表 (<span id="stationCount">0</span> 個車站)
+                </h3>
+                <div class="flex space-x-2">
+                    <button id="selectAllBtn" class="bg-youbike hover:bg-youbike-dark text-white px-4 py-2 rounded-lg transition-colors text-sm">
+                        全選
+                    </button>
+                    <button id="deselectAllBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors text-sm">
+                        全部取消
+                    </button>
+                </div>
+            </div>
+            
+            <div id="stationsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+            </div>
+        </div>
+
+        <!-- 趨勢圖表 -->
+        <div id="chartsSection" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold text-gray-900">已選車站趨勢比較</h3>
+                    <div class="text-sm text-gray-600">
+                        已選擇 <span id="selectedCount">0</span> 個車站
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-bicycle text-youbike mr-2"></i>
+                            可借車輛趨勢
+                        </h4>
+                        <div class="relative h-64 md:h-80 w-full">
+                            <canvas id="bikesChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-parking text-blue-600 mr-2"></i>
+                            可停車位趨勢
+                        </h4>
+                        <div class="relative h-64 md:h-80 w-full">
+                            <canvas id="spacesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 無資料狀態 -->
+        <div id="noData" class="text-center py-12 hidden">
+            <i class="fas fa-search text-gray-400 text-6xl mb-4"></i>
+            <h3 class="text-xl font-semibold text-gray-600 mb-2">找不到符合條件的車站</h3>
+            <p class="text-gray-500">請嘗試調整搜尋條件或篩選選項</p>
+        </div>
+    </div>
+
+    <script>
+        let allStationsData = {};
+        let dataFiles = [];
+        let allStations = [];
+        let filteredStations = [];
+        let selectedStations = new Set();
+        let bikesChart = null;
+        let spacesChart = null;
+        let userLocation = null;
+        let isLocationMode = false;
+
+        // 顏色調色盤
+        const colors = [
+            '#2DC759', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6',
+            '#06B6D4', '#F97316', '#84CC16', '#EC4899', '#6366F1'
+        ];
+
+        // 載入資料檔案清單
+        async function loadDataFiles() {
+            try {
+                const response = await fetch('index.json');
+                dataFiles = await response.json();
+                console.log('資料檔案清單:', dataFiles);
+            } catch (error) {
+                console.error('載入資料檔案清單失敗:', error);
+            }
+        }
+
+        // 載入所有歷史資料
+        async function loadAllData() {
+            try {
+                for (const file of dataFiles) {
+                    const response = await fetch(`data/${file}`);
+                    const data = await response.json();
+                    const timestamp = file.replace('.json', '');
+                    allStationsData[timestamp] = data;
+                }
+                
+                // 獲取所有車站
+                if (dataFiles.length > 0) {
+                    const latestTimestamp = Object.keys(allStationsData).sort().reverse()[0];
+                    allStations = allStationsData[latestTimestamp] || [];
+                    filteredStations = [...allStations];
+                }
+                
+                console.log('已載入所有資料:', Object.keys(allStationsData));
+                console.log('車站總數:', allStations.length);
+            } catch (error) {
+                console.error('載入歷史資料失敗:', error);
+            }
+        }
+
+        // 格式化時間
+        function formatTime(timestamp) {
+            const year = timestamp.substring(0, 4);
+            const month = timestamp.substring(5, 7);
+            const day = timestamp.substring(8, 10);
+            const hour = timestamp.substring(11, 13);
+            const minute = timestamp.substring(14, 16);
+            return `${month}/${day} ${hour}:${minute}`;
+        }
+
+        // 計算兩點間距離 (Haversine 公式)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000; // 地球半徑（米）
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return Math.round(R * c);
+        }
+
+        // 獲取使用者位置
+        async function getUserLocation() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('瀏覽器不支援定位功能，請使用支援 GPS 的現代瀏覽器'));
+                    return;
+                }
+
+                const options = {
+                    enableHighAccuracy: true,
+                    timeout: 15000, // 增加到15秒
+                    maximumAge: 300000 // 5分鐘內的快取位置可接受
+                };
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        // 檢查位置精確度
+                        if (position.coords.accuracy > 10000) { // 超過10公里的誤差
+                            console.warn('位置精確度較低:', position.coords.accuracy);
+                        }
+                        
+                        resolve({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        });
+                    },
+                    (error) => {
+                        let message = '定位失敗';
+                        let suggestion = '';
+                        
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                message = '定位權限被拒絕';
+                                suggestion = '請在瀏覽器設定中允許位置存取權限，然後重新整理頁面';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                message = '無法取得位置資訊';
+                                suggestion = '請確認已開啟定位服務，或嘗試在戶外環境使用';
+                                break;
+                            case error.TIMEOUT:
+                                message = '定位請求逾時';
+                                suggestion = '請檢查網路連線或稍後再試';
+                                break;
+                            default:
+                                message = '定位服務發生未知錯誤';
+                                suggestion = '請重新整理頁面或稍後再試';
+                        }
+                        
+                        console.error('定位錯誤詳情:', error);
+                        reject(new Error(`${message}。${suggestion}`));
+                    },
+                    options
+                );
+            });
+        }
+
+        // 嘗試低精度定位（備用方案）
+        async function getFallbackLocation() {
+            return new Promise((resolve, reject) => {
+                const options = {
+                    enableHighAccuracy: false, // 使用網路定位
+                    timeout: 10000,
+                    maximumAge: 600000 // 10分鐘內的快取可接受
+                };
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        });
+                    },
+                    (error) => {
+                        reject(error);
+                    },
+                    options
+                );
+            });
+        }
+
+        // 處理定位按鈕點擊
+        async function handleLocationClick() {
+            const locationBtn = document.getElementById('locationBtn');
+            const locationBtnText = document.getElementById('locationBtnText');
+            const locationStatus = document.getElementById('locationStatus');
+            const locationText = document.getElementById('locationText');
+
+            // 如果已經在定位模式，切換回正常模式
+            if (isLocationMode) {
+                clearLocationMode();
+                return;
+            }
+
+            // 開始定位
+            locationBtn.disabled = true;
+            locationBtnText.textContent = '定位中...';
+            locationBtn.classList.add('opacity-50');
+            locationStatus.classList.remove('hidden');
+            locationText.textContent = '正在取得您的位置...';
+
+            try {
+                // 首先嘗試高精度定位
+                userLocation = await getUserLocation();
+                isLocationMode = true;
+
+                // 更新 UI
+                locationBtnText.textContent = '清除定位';
+                locationBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                locationBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+                locationText.textContent = `已定位 (精準度: ${Math.round(userLocation.accuracy)}m)`;
+
+                // 計算所有站點距離並重新排序
+                calculateStationDistances();
+                
+                // 在定位模式下建議開啟前十車站選項
+                const showTopTenCheckbox = document.getElementById('showTopTenOnly');
+                if (!showTopTenCheckbox.checked) {
+                    showTopTenCheckbox.checked = true;
+                }
+                
+                filterStations();
+
+                const accuracyNote = userLocation.accuracy > 1000 ? '（使用網路定位，精度較低）' : '';
+                showNotification(`定位成功！已按距離排序顯示附近站點${accuracyNote}`, 'success');
+
+            } catch (primaryError) {
+                console.warn('高精度定位失敗，嘗試備用方案:', primaryError);
+                locationText.textContent = '正在嘗試備用定位方式...';
+
+                try {
+                    // 嘗試低精度定位作為備用方案
+                    userLocation = await getFallbackLocation();
+                    isLocationMode = true;
+
+                    // 更新 UI
+                    locationBtnText.textContent = '清除定位';
+                    locationBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                    locationBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+                    locationText.textContent = `已定位 (網路定位，精準度: ${Math.round(userLocation.accuracy)}m)`;
+
+                    // 計算所有站點距離並重新排序
+                    calculateStationDistances();
+                    
+                    // 在定位模式下建議開啟前十車站選項
+                    const showTopTenCheckbox = document.getElementById('showTopTenOnly');
+                    if (!showTopTenCheckbox.checked) {
+                        showTopTenCheckbox.checked = true;
+                    }
+                    
+                    filterStations();
+
+                    showNotification('使用網路定位成功！精度較低但仍可參考', 'success');
+
+                } catch (fallbackError) {
+                    console.error('所有定位方式都失敗:', fallbackError);
+                    showNotification(primaryError.message, 'error');
+                    clearLocationMode(false); // 不顯示清除通知，因為這是錯誤恢復
+                }
+            }
+
+            locationBtn.disabled = false;
+            locationBtn.classList.remove('opacity-50');
+        }
+
+        // 計算站點距離
+        function calculateStationDistances() {
+            if (!userLocation) return;
+
+            allStations.forEach(station => {
+                const stationLat = parseFloat(station.lat);
+                const stationLng = parseFloat(station.lng);
+                station.distance = calculateDistance(
+                    userLocation.latitude,
+                    userLocation.longitude,
+                    stationLat,
+                    stationLng
+                );
+            });
+
+            // 按距離排序
+            allStations.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+        }
+
+        // 清除定位模式
+        function clearLocationMode(showNotificationMsg = true) {
+            isLocationMode = false;
+            userLocation = null;
+
+            const locationBtn = document.getElementById('locationBtn');
+            const locationBtnText = document.getElementById('locationBtnText');
+            const locationStatus = document.getElementById('locationStatus');
+
+            locationBtnText.textContent = '找附近站點';
+            locationBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+            locationBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            locationStatus.classList.add('hidden');
+
+            // 清除距離資訊並恢復原始順序
+            allStations.forEach(station => {
+                delete station.distance;
+            });
+
+            // 重新按站點編號排序
+            allStations.sort((a, b) => a.sno.localeCompare(b.sno));
+
+            filterStations();
+            
+            // 只有在明確要求時才顯示通知
+            if (showNotificationMsg) {
+                showNotification('已清除定位模式', 'success');
+            }
+        }
+
+        // 初始化篩選器
+        function initializeFilters() {
+            const areaFilter = document.getElementById('areaFilter');
+            const areas = [...new Set(allStations.map(station => station.sarea))].sort();
+            
+            areaFilter.innerHTML = '<option value="">所有行政區</option>';
+            areas.forEach(area => {
+                const option = document.createElement('option');
+                option.value = area;
+                option.textContent = area;
+                areaFilter.appendChild(option);
+            });
+        }
+
+        // 篩選車站
+        function filterStations() {
+            const searchTerm = document.getElementById('stationSearch').value.toLowerCase();
+            const selectedArea = document.getElementById('areaFilter').value;
+            const showTopTenOnly = document.getElementById('showTopTenOnly').checked;
+
+            filteredStations = allStations.filter(station => {
+                const matchesSearch = station.sna.toLowerCase().includes(searchTerm) || 
+                                    station.ar.toLowerCase().includes(searchTerm);
+                const matchesArea = !selectedArea || station.sarea === selectedArea;
+                return matchesSearch && matchesArea;
+            });
+
+            // 如果在定位模式下，確保按距離排序
+            if (isLocationMode && userLocation) {
+                filteredStations.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+            }
+
+            // 如果勾選只顯示前十個車站
+            if (showTopTenOnly) {
+                filteredStations = filteredStations.slice(0, 10);
+            }
+
+            renderStationsList();
+        }
+
+        // 渲染車站列表
+        function renderStationsList() {
+            const grid = document.getElementById('stationsGrid');
+            const stationCount = document.getElementById('stationCount');
+            const noData = document.getElementById('noData');
+            const stationsList = document.getElementById('stationsList');
+
+            stationCount.textContent = filteredStations.length;
+
+            if (filteredStations.length === 0) {
+                stationsList.classList.add('hidden');
+                noData.classList.remove('hidden');
+                return;
+            }
+
+            noData.classList.add('hidden');
+            stationsList.classList.remove('hidden');
+
+            grid.innerHTML = filteredStations.map(station => {
+                const isSelected = selectedStations.has(station.sno);
+                return `
+                    <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-all cursor-pointer border-2 ${isSelected ? 'border-youbike bg-green-50' : 'border-transparent'}" 
+                         data-station-id="${station.sno}">
+                        <div class="p-4">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <h4 class="font-semibold text-gray-900 text-sm">${station.sna}</h4>
+                                        <button 
+                                            onclick="copyStationName('${station.sna.replace(/'/g, "\\'")}', event)"
+                                            class="ml-2 p-1 text-gray-400 hover:text-youbike transition-colors rounded"
+                                            title="複製站名"
+                                        >
+                                            <i class="fas fa-copy text-xs"></i>
+                                        </button>
+                                    </div>
+                                    <p class="text-xs text-gray-600 mb-1">${station.ar}</p>
+                                    <div class="flex justify-between items-center">
+                                        <p class="text-xs text-gray-500">${station.sarea}</p>
+                                        ${station.distance !== undefined ? 
+                                            `<span class="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded">
+                                                <i class="fas fa-map-marker-alt mr-1"></i>${station.distance}m
+                                            </span>` : ''
+                                        }
+                                    </div>
+                                </div>
+                                <div class="ml-2">
+                                    <input type="checkbox" ${isSelected ? 'checked' : ''} 
+                                           class="w-4 h-4 text-youbike bg-gray-100 border-gray-300 rounded focus:ring-youbike focus:ring-2"
+                                           onchange="toggleStation('${station.sno}')">
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-2 text-center">
+                                <div class="bg-gray-50 rounded p-2">
+                                    <div class="text-xs text-gray-600 mb-1">可借</div>
+                                    <div class="text-lg font-bold text-youbike">${station.sbi}</div>
+                                </div>
+                                <div class="bg-gray-50 rounded p-2">
+                                    <div class="text-xs text-gray-600 mb-1">可還</div>
+                                    <div class="text-lg font-bold text-blue-600">${station.bemp}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 隱藏載入狀態
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        // 切換車站選擇
+        function toggleStation(stationId) {
+            if (selectedStations.has(stationId)) {
+                selectedStations.delete(stationId);
+            } else {
+                selectedStations.add(stationId);
+            }
+            updateSelectedCount();
+            renderStationsList();
+            updateCharts();
+        }
+
+        // 更新選擇數量
+        function updateSelectedCount() {
+            document.getElementById('selectedCount').textContent = selectedStations.size;
+            
+            const chartsSection = document.getElementById('chartsSection');
+            if (selectedStations.size > 0) {
+                chartsSection.classList.remove('hidden');
+            } else {
+                chartsSection.classList.add('hidden');
+            }
+        }
+
+        // 全選/全部取消
+        function selectAll() {
+            filteredStations.forEach(station => selectedStations.add(station.sno));
+            updateSelectedCount();
+            renderStationsList();
+            updateCharts();
+        }
+
+        function deselectAll() {
+            selectedStations.clear();
+            updateSelectedCount();
+            renderStationsList();
+            updateCharts();
+        }
+
+        // 更新圖表
+        function updateCharts() {
+            if (selectedStations.size === 0) return;
+
+            const timestamps = Object.keys(allStationsData).sort();
+            const labels = timestamps.map(ts => formatTime(ts));
+            
+            const selectedStationsList = Array.from(selectedStations).slice(0, 10); // 限制最多10個車站
+            
+            // 準備可借車輛資料
+            const bikesDatasets = selectedStationsList.map((stationId, index) => {
+                const station = allStations.find(s => s.sno === stationId);
+                return {
+                    label: station.sna,
+                    data: timestamps.map(ts => {
+                        const stationData = allStationsData[ts].find(s => s.sno === stationId);
+                        return stationData ? parseInt(stationData.sbi) : 0;
+                    }),
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length] + '20',
+                    tension: 0.1,
+                    fill: false
+                };
+            });
+
+            // 準備可停車位資料
+            const spacesDatasets = selectedStationsList.map((stationId, index) => {
+                const station = allStations.find(s => s.sno === stationId);
+                return {
+                    label: station.sna,
+                    data: timestamps.map(ts => {
+                        const stationData = allStationsData[ts].find(s => s.sno === stationId);
+                        return stationData ? parseInt(stationData.bemp) : 0;
+                    }),
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length] + '20',
+                    tension: 0.1,
+                    fill: false
+                };
+            });
+
+            const chartConfig = {
+                type: 'line',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                font: {
+                                    size: window.innerWidth < 768 ? 9 : 11
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                font: {
+                                    size: window.innerWidth < 768 ? 9 : 11
+                                },
+                                maxRotation: window.innerWidth < 768 ? 45 : 0,
+                                maxTicksLimit: window.innerWidth < 768 ? 5 : 10
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: window.innerWidth < 768 ? 8 : 15,
+                                font: {
+                                    size: window.innerWidth < 768 ? 9 : 11
+                                },
+                                boxWidth: window.innerWidth < 768 ? 8 : 12
+                            }
+                        },
+                        tooltip: {
+                            bodyFont: {
+                                size: window.innerWidth < 768 ? 10 : 12
+                            },
+                            titleFont: {
+                                size: window.innerWidth < 768 ? 10 : 12
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            };
+
+            // 銷毀舊圖表
+            if (bikesChart) bikesChart.destroy();
+            if (spacesChart) spacesChart.destroy();
+
+            // 建立新圖表
+            bikesChart = new Chart(document.getElementById('bikesChart'), {
+                ...chartConfig,
+                data: { labels, datasets: bikesDatasets }
+            });
+
+            spacesChart = new Chart(document.getElementById('spacesChart'), {
+                ...chartConfig,
+                data: { labels, datasets: spacesDatasets }
+            });
+        }
+
+        // 清除篩選
+        function clearFilters() {
+            document.getElementById('stationSearch').value = '';
+            document.getElementById('areaFilter').value = '';
+            document.getElementById('showTopTenOnly').checked = false;
+            if (isLocationMode) {
+                clearLocationMode();
+            } else {
+                filterStations();
+            }
+        }
+
+        // 事件監聽器
+        function setupEventListeners() {
+            document.getElementById('stationSearch').addEventListener('input', filterStations);
+            document.getElementById('areaFilter').addEventListener('change', filterStations);
+            document.getElementById('showTopTenOnly').addEventListener('change', filterStations);
+            document.getElementById('clearFilters').addEventListener('click', clearFilters);
+            document.getElementById('selectAllBtn').addEventListener('click', selectAll);
+            document.getElementById('deselectAllBtn').addEventListener('click', deselectAll);
+            document.getElementById('locationBtn').addEventListener('click', handleLocationClick);
+            document.getElementById('clearLocation').addEventListener('click', clearLocationMode);
+
+            // 車站卡片點擊事件
+            document.getElementById('stationsGrid').addEventListener('click', (e) => {
+                const card = e.target.closest('[data-station-id]');
+                if (card && !e.target.matches('input[type="checkbox"]') && !e.target.closest('button')) {
+                    const checkbox = card.querySelector('input[type="checkbox"]');
+                    checkbox.checked = !checkbox.checked;
+                    toggleStation(card.dataset.stationId);
+                }
+            });
+        }
+
+        // 初始化
+        async function init() {
+            await loadDataFiles();
+            await loadAllData();
+            initializeFilters();
+            setupEventListeners();
+            renderStationsList();
+        }
+
+        // 複製站名到剪貼簿
+        async function copyStationName(stationName, event) {
+            // 阻止事件冒泡，避免觸發卡片點擊
+            event.stopPropagation();
+            
+            try {
+                await navigator.clipboard.writeText(stationName);
+                showNotification(`已複製站名：${stationName}`, 'success');
+            } catch (err) {
+                // 降級方案：使用舊式 API
+                const textArea = document.createElement('textarea');
+                textArea.value = stationName;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    showNotification(`已複製站名：${stationName}`, 'success');
+                } catch (fallbackErr) {
+                    showNotification('複製失敗，請手動複製', 'error');
+                    console.error('複製失敗:', fallbackErr);
+                }
+                
+                document.body.removeChild(textArea);
+            }
+        }
+
+        // 顯示通知
+        function showNotification(message, type = 'success') {
+            // 移除現有通知
+            const existingNotification = document.querySelector('#copyNotification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+
+            // 創建通知元素
+            const notification = document.createElement('div');
+            notification.id = 'copyNotification';
+            notification.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 transform translate-x-full ${
+                type === 'success' 
+                    ? 'bg-green-500 text-white' 
+                    : 'bg-red-500 text-white'
+            }`;
+            
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>
+                    <span class="text-sm font-medium">${message}</span>
+                </div>
+            `;
+
+            document.body.appendChild(notification);
+
+            // 顯示動畫
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+
+            // 3秒後自動隱藏
+            setTimeout(() => {
+                notification.style.transform = 'translateX(full)';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // 全域函數
+        window.toggleStation = toggleStation;
+        window.copyStationName = copyStationName;
+
+        // 視窗大小變化時重新渲染圖表
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (selectedStations.size > 0) {
+                    updateCharts();
+                }
+            }, 300);
+        });
+
+        // 頁面載入完成後初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
