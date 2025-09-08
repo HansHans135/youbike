@@ -1,17 +1,19 @@
-name: Update Incidents Data
+name: Fetch and Save Data
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *'  # Run every 5 min
-  workflow_dispatch:  # Allow manual trigger
-  workflow_call:  # Allow being called by other workflows
-
-permissions:
-  contents: write
+    - cron: '*/5 * * * *'  # 5min
+  push:
+    branches:
+      - page
 
 jobs:
-  update-incidents:
+  fetch-and-save:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repo
@@ -28,16 +30,14 @@ jobs:
       - name: Run fetch script
         run: python run.py
 
-      - name: Setup page branch
+      - name: Commit & Push changes
         run: |
-          git fetch origin page || git checkout --orphan page
-          git checkout page || git checkout -b page
-          git pull origin page || true
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Commit and push if changed
-        run: |
-          git config --local user.email "hi@hans0805.me"
-          git config --local user.name "hans with GitHub Action"
-          git add data/
+          git fetch origin
+          git checkout page || git checkout -b page
+
+          git add data/ 
           git add index.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update incidents data" && git push origin page) 
+          git diff --cached --quiet && echo "No changes to commit" || (git commit -m "Add fetched data" && git push origin page --force)
