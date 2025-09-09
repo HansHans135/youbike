@@ -54,6 +54,6 @@ result_files = recent_hour + sampled_files
 print(f"result_files: {result_files}")
 """
 
-result_files = files
+result_files = files[:20]
 with open(f"index.json", "w", encoding="utf-8") as f:
     json.dump(result_files, f, ensure_ascii=False, indent=4)
