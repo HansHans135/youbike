@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
-          fetch-depth: 0  # 獲取完整歷史記錄
+          fetch-depth: 0
 
       - name: Configure git
         run: |
@@ -76,3 +76,37 @@ jobs:
       - name: Push changes to page branch
         run: |
           git push origin page
+  fetch-and-save:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Switch to page branch
+        run: |
+          git fetch origin
+          git checkout page || git checkout -b page
+
+      - name: Run fetch script
+        run: python run.py
+
+      - name: Commit & Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add data/ index.json
+          git diff --cached --quiet && echo "No changes to commit" || (git commit -m "Add fetched data" && git push origin page)
+
