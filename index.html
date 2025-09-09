@@ -92,9 +92,10 @@
         let spacesChart = null;
 
         // 載入所有歷史資料
-        async function loadAllData() {
+        async function loadAllData(config) {
             try {
-                const response = await fetch('index.json');
+                const indexUrl = config.url ? `${config.url}index.json` : 'index.json';
+                const response = await fetch(indexUrl);
                 allStationsData = await response.json();
                 console.log('已載入所有資料:', Object.keys(allStationsData));
             } catch (error) {
@@ -102,16 +103,18 @@
             }
         }
 
-        // 載入常用站牌配置
-        async function loadFavoriteStations() {
+        // 載入配置
+        async function loadConfig() {
             try {
                 const response = await fetch('config.json');
                 const config = await response.json();
                 favoriteStations = config.likes || [];
                 console.log('常用站牌:', favoriteStations);
+                return config;
             } catch (error) {
-                console.error('載入常用站牌配置失敗:', error);
+                console.error('載入配置失敗:', error);
                 favoriteStations = [];
+                return { url: '', likes: [] };
             }
         }
 
@@ -342,8 +345,8 @@
 
         // 初始化
         async function init() {
-            await loadAllData();
-            await loadFavoriteStations();
+            const config = await loadConfig();
+            await loadAllData(config);
             renderStations();
             renderTrends();
         }
