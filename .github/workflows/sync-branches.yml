@@ -1,0 +1,78 @@
+name: Sync Main to Page Branch
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync-branches:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0  # 獲取完整歷史記錄
+
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create or checkout page branch
+        run: |
+          git fetch origin
+          git checkout page || git checkout -b page origin/page || git checkout -b page
+
+      - name: Merge main into page with exclusions
+        run: |
+          mkdir -p .temp_backup
+          
+          if [ -f .gitignore ]; then
+            cp .gitignore .temp_backup/.gitignore
+          fi
+          
+          if [ -f config.json ]; then
+            cp config.json .temp_backup/config.json
+          fi
+          
+          if [ -d data ]; then
+            cp -r data .temp_backup/data
+          fi
+
+          git merge main --no-edit || {
+            echo "Merge conflict occurred, attempting to resolve..."
+            git status
+            git add .
+            git commit -m "Merge main into page with conflict resolution"
+          }
+
+          if [ -f .temp_backup/.gitignore ]; then
+            cp .temp_backup/.gitignore .gitignore
+          fi
+          
+          if [ -f .temp_backup/config.json ]; then
+            cp .temp_backup/config.json config.json
+          fi
+          
+          if [ -d .temp_backup/data ]; then
+            rm -rf data
+            cp -r .temp_backup/data data
+          fi
+
+          rm -rf .temp_backup
+
+      - name: Commit preserved files if changed
+        run: |
+          git add .gitignore config.json data/ || true
+          git diff --cached --quiet || git commit -m "Preserve excluded files in page branch"
+
+      - name: Push changes to page branch
+        run: |
+          git push origin page
