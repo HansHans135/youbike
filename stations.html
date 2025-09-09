@@ -191,7 +191,6 @@
 
     <script>
         let allStationsData = {};
-        let dataFiles = [];
         let allStations = [];
         let filteredStations = [];
         let selectedStations = new Set();
@@ -206,43 +205,27 @@
             '#06B6D4', '#F97316', '#84CC16', '#EC4899', '#6366F1'
         ];
 
-        // 載入資料檔案清單
-        async function loadDataFiles() {
-            try {
-                const response = await fetch('index.json');
-                dataFiles = await response.json();
-                console.log('資料檔案清單:', dataFiles);
-            } catch (error) {
-                console.error('載入資料檔案清單失敗:', error);
-            }
-        }
-
         // 載入所有歷史資料
         async function loadAllData() {
             try {
-                for (const file of dataFiles) {
-                    const response = await fetch(`data/${file}`);
-                    const data = await response.json();
-                    const timestamp = file.replace('.json', '');
-                    allStationsData[timestamp] = data;
-                }
-                
-                // 獲取所有車站
-                if (dataFiles.length > 0) {
-                    const latestTimestamp = Object.keys(allStationsData).sort().reverse()[0];
-                    allStations = allStationsData[latestTimestamp] || [];
-                    filteredStations = [...allStations];
-                }
-                
+                const response = await fetch('index.json');
+                allStationsData = await response.json();
                 console.log('已載入所有資料:', Object.keys(allStationsData));
-                console.log('車站總數:', allStations.length);
             } catch (error) {
-                console.error('載入歷史資料失敗:', error);
+                console.error('載入資料失敗:', error);
             }
         }
 
+
         // 格式化時間
         function formatTime(timestamp) {
+            // 適應新的時間戳格式: YYYY_MM_DD_HH_MM_SS
+            const parts = timestamp.split('_');
+            if (parts.length === 6) {
+                const [year, month, day, hour, minute, second] = parts;
+                return `${month}/${day} ${hour}:${minute}`;
+            }
+            // 舊格式回退
             const year = timestamp.substring(0, 4);
             const month = timestamp.substring(5, 7);
             const day = timestamp.substring(8, 10);
@@ -644,8 +627,10 @@
                 return {
                     label: station.sna,
                     data: timestamps.map(ts => {
-                        const stationData = allStationsData[ts].find(s => s.sno === stationId);
-                        return stationData ? parseInt(stationData.sbi) : 0;
+                        const timeData = allStationsData[ts];
+                        if (!timeData || !Array.isArray(timeData)) return 0;
+                        const stationData = timeData.find(s => s.sno === stationId);
+                        return stationData ? parseInt(stationData.sbi) || 0 : 0;
                     }),
                     borderColor: colors[index % colors.length],
                     backgroundColor: colors[index % colors.length] + '20',
@@ -660,8 +645,10 @@
                 return {
                     label: station.sna,
                     data: timestamps.map(ts => {
-                        const stationData = allStationsData[ts].find(s => s.sno === stationId);
-                        return stationData ? parseInt(stationData.bemp) : 0;
+                        const timeData = allStationsData[ts];
+                        if (!timeData || !Array.isArray(timeData)) return 0;
+                        const stationData = timeData.find(s => s.sno === stationId);
+                        return stationData ? parseInt(stationData.bemp) || 0 : 0;
                     }),
                     borderColor: colors[index % colors.length],
                     backgroundColor: colors[index % colors.length] + '20',
@@ -774,8 +761,15 @@
 
         // 初始化
         async function init() {
-            await loadDataFiles();
             await loadAllData();
+
+            // 獲取所有車站
+            if (Object.keys(allStationsData).length > 0) {
+                const latestTimestamp = Object.keys(allStationsData).sort().reverse()[0];
+                allStations = allStationsData[latestTimestamp] || [];
+                filteredStations = [...allStations];
+            }
+
             initializeFilters();
             setupEventListeners();
             renderStationsList();
