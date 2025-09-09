@@ -55,5 +55,22 @@ print(f"result_files: {result_files}")
 """
 
 result_files = files[:20]
+data_index = {}
+
+# 載入最新的20個數據文件並組織為對象格式
+for file in result_files:
+    try:
+        file_path = os.path.join(output_dir, file)
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        # 使用文件名（不含.json）作為鍵
+        timestamp = file.replace('.json', '')
+        data_index[timestamp] = data
+    except Exception as e:
+        print(f"載入文件 {file} 失敗: {e}")
+
+# 寫入index.json
 with open(f"index.json", "w", encoding="utf-8") as f:
-    json.dump(result_files, f, ensure_ascii=False, indent=4)
+    json.dump(data_index, f, ensure_ascii=False, indent=4)
+
+print(f"已生成 index.json，包含 {len(data_index)} 個時間點的資料")
