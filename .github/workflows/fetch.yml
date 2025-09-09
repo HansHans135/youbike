@@ -4,9 +4,6 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '*/5 * * * *'  # 5min
-  push:
-    branches:
-      - main
 
 jobs:
   fetch-and-save:
