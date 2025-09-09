@@ -243,8 +243,8 @@
             const favoriteData = getFavoriteStationsData();
             if (!favoriteData.length) return;
 
-            // 使用常用站牌作為趨勢顯示（最多3個）
-            const selectedStations = favoriteData.slice(0, 3);
+            // 使用常用站牌作為趨勢顯示
+            const selectedStations = favoriteData;
             
             const labels = timestamps.map(ts => formatTime(ts));
             
