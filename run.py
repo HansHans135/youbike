@@ -23,7 +23,7 @@ print(f"已下載並存到 {output_file}")
 
 files = os.listdir("data")
 files.sort(reverse=True)
-
+"""
 # 最近一小時的所有資料
 recent_hour = []
 # 每30分鐘一筆資料
@@ -52,6 +52,8 @@ for file in files:
 result_files = recent_hour + sampled_files
 
 print(f"result_files: {result_files}")
+"""
 
+result_files = files
 with open(f"index.json", "w", encoding="utf-8") as f:
     json.dump(result_files, f, ensure_ascii=False, indent=4)
