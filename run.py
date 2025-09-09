@@ -22,8 +22,34 @@ with open(output_file, "w", encoding="utf-8") as f:
 print(f"已下載並存到 {output_file}")
 
 files = os.listdir("data")
-print(files)
 files.sort(reverse=True)
 
+# 最近一小時的所有資料
+recent_hour = []
+# 每30分鐘一筆資料
+sampled_files = []
+
+now = datetime.now() + timedelta(hours=8)
+one_hour_ago = now - timedelta(hours=1)
+two_days_ago = now - timedelta(hours=48)
+
+for file in files:
+    try:
+        file_time = datetime.strptime(file.split(".")[0], "%Y_%m_%d_%H_%M_%S")
+        
+        # 最近一小時的資料全部保留
+        if file_time > one_hour_ago:
+            recent_hour.append(file)
+            continue
+            
+        # 超過一小時但在48小時內的資料每30分鐘取樣一次
+        if file_time > two_days_ago:
+            if file_time.minute in [0, 30]:
+                sampled_files.append(file)
+    except:
+        continue
+
+result_files = recent_hour + sampled_files
+
 with open(f"index.json", "w", encoding="utf-8") as f:
-    json.dump(files[:576], f, ensure_ascii=False, indent=4)
+    json.dump(result_files, f, ensure_ascii=False, indent=4)
