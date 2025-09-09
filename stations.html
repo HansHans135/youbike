@@ -205,10 +205,24 @@
             '#06B6D4', '#F97316', '#84CC16', '#EC4899', '#6366F1'
         ];
 
-        // 載入所有歷史資料
-        async function loadAllData() {
+        // 載入配置
+        async function loadConfig() {
             try {
-                const response = await fetch('index.json');
+                const response = await fetch('config.json');
+                const config = await response.json();
+                console.log('載入配置成功');
+                return config;
+            } catch (error) {
+                console.error('載入配置失敗:', error);
+                return { url: '', likes: [] };
+            }
+        }
+
+        // 載入所有歷史資料
+        async function loadAllData(config) {
+            try {
+                const indexUrl = config.url ? `${config.url}index.json` : 'index.json';
+                const response = await fetch(indexUrl);
                 allStationsData = await response.json();
                 console.log('已載入所有資料:', Object.keys(allStationsData));
             } catch (error) {
@@ -761,7 +775,8 @@
 
         // 初始化
         async function init() {
-            await loadAllData();
+            const config = await loadConfig();
+            await loadAllData(config);
 
             // 獲取所有車站
             if (Object.keys(allStationsData).length > 0) {
