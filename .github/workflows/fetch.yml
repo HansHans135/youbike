@@ -2,8 +2,6 @@ name: Fetch and Save Data
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'  # 5min
   push:
     branches:
       - main
